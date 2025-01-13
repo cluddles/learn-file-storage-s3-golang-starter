@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -12,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -24,31 +21,20 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	token, err := auth.GetBearerToken(r.Header)
+	userID, err := cfg.authenticate(r)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
-		return
-	}
-
-	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't authenticate", err)
 		return
 	}
 
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	const maxMemory = 10 << 20
-	if err := r.ParseMultipartForm(maxMemory); err != nil {
+	formFile, header, err := readMultipartForm(r, "thumbnail", 10<<20)
+	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't parse multipart form", err)
 		return
 	}
-
-	formFile, header, err := r.FormFile("thumbnail")
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't read form file", err)
-		return
-	}
+	defer formFile.Close()
 
 	mediaType, _, err := mime.ParseMediaType(header.Header.Get("Content-Type"))
 	if err != nil || (mediaType != "image/jpeg" && mediaType != "image/png") {
@@ -68,19 +54,20 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	randBytes := make([]byte, 32)
-	if _, err := rand.Read(randBytes); err != nil {
+	key, err := generateAssetKey()
+	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to generate filename", err)
 		return
 	}
 
-	filename := fmt.Sprintf("%s.%s", base64.RawURLEncoding.EncodeToString(randBytes), ext)
+	filename := fmt.Sprintf("%s.%s", key, ext)
 	path := filepath.Join(cfg.assetsRoot, filename)
 	outFile, err := os.Create(path)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Create video file failed", err)
 		return
 	}
+	defer outFile.Close()
 	if _, err := io.Copy(outFile, formFile); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Video save failed", err)
 		return

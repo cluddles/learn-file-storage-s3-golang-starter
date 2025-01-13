@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 	"github.com/google/uuid"
 )
@@ -14,14 +13,9 @@ func (cfg *apiConfig) handlerVideoMetaCreate(w http.ResponseWriter, r *http.Requ
 		database.CreateVideoParams
 	}
 
-	token, err := auth.GetBearerToken(r.Header)
+	userID, err := cfg.authenticate(r)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
-		return
-	}
-	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't authenticate", err)
 		return
 	}
 
@@ -51,14 +45,9 @@ func (cfg *apiConfig) handlerVideoMetaDelete(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	token, err := auth.GetBearerToken(r.Header)
+	userID, err := cfg.authenticate(r)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
-		return
-	}
-	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't authenticate", err)
 		return
 	}
 
@@ -99,14 +88,9 @@ func (cfg *apiConfig) handlerVideoGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerVideosRetrieve(w http.ResponseWriter, r *http.Request) {
-	token, err := auth.GetBearerToken(r.Header)
+	userID, err := cfg.authenticate(r)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT", err)
-		return
-	}
-	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
-	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Couldn't validate JWT", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't authenticate", err)
 		return
 	}
 
