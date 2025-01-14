@@ -11,12 +11,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -126,7 +124,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	url := fmt.Sprintf("%s,%s", cfg.s3Bucket, key)
+	url := cfg.keyToS3URL(key)
 	video.VideoURL = &url
 	video.UpdatedAt = time.Now()
 	if err := cfg.db.UpdateVideo(video); err != nil {
@@ -135,13 +133,6 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 
 	log.Printf("Upload %s done\n", key)
-
-	video, err = cfg.dbVideoToSignedVideo(video)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Could convert URL to presigned", err)
-		return
-	}
-
 	respondWithJSON(w, http.StatusOK, video)
 }
 
@@ -177,31 +168,4 @@ func processVideoForFastStart(filePath string) (string, error) {
 		return "", fmt.Errorf("couldn't run ffmpeg: %s", err)
 	}
 	return outPath, nil
-}
-
-func generatePresignedURL(s3Client *s3.Client, bucket, key string, expireTime time.Duration) (string, error) {
-	presignClient := s3.NewPresignClient(s3Client)
-	getObjectInput := s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)}
-	presigned, err := presignClient.PresignGetObject(context.TODO(), &getObjectInput, s3.WithPresignExpires(expireTime))
-	if err != nil {
-		return "", err
-	}
-	return presigned.URL, nil
-}
-
-func (cfg *apiConfig) dbVideoToSignedVideo(video database.Video) (database.Video, error) {
-	if video.VideoURL == nil {
-		return video, nil
-	}
-
-	parts := strings.Split(*video.VideoURL, ",")
-	if len(parts) != 2 {
-		return database.Video{}, fmt.Errorf("expected videoUrl of form bucket,key")
-	}
-	presignedURL, err := generatePresignedURL(cfg.s3Client, parts[0], parts[1], time.Minute)
-	if err != nil {
-		return database.Video{}, fmt.Errorf("couldn't generate presigned URL: %s", err)
-	}
-	video.VideoURL = &presignedURL
-	return video, nil
 }

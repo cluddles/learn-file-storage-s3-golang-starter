@@ -24,8 +24,7 @@ func generateAssetKey() (string, error) {
 }
 
 func (cfg *apiConfig) keyToS3URL(key string) string {
-	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-		cfg.s3Bucket,
-		cfg.s3Region,
+	return fmt.Sprintf("https://%s/%s",
+		cfg.s3CfDistribution,
 		key)
 }
